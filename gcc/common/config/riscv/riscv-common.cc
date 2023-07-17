@@ -128,6 +128,8 @@ static const riscv_implied_info_t riscv_implied_info[] =
   {"zhinx", "zhinxmin"},
   {"zhinxmin", "zfinx"},
 
+  {"zacas", "a"},
+
   {NULL, NULL}
 };
 
@@ -184,6 +186,7 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"zifencei", ISA_SPEC_CLASS_20190608, 2, 0},
 
   {"zawrs", ISA_SPEC_CLASS_NONE, 1, 0},
+  {"zacas", ISA_SPEC_CLASS_NONE, 0, 1},
 
   {"zba", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zbb", ISA_SPEC_CLASS_NONE, 1, 0},
@@ -1245,6 +1248,7 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   {"zifencei", &gcc_options::x_riscv_zi_subext, MASK_ZIFENCEI},
 
   {"zawrs", &gcc_options::x_riscv_za_subext, MASK_ZAWRS},
+  {"zacas", &gcc_options::x_riscv_za_subext, MASK_ZACAS},
 
   {"zba",    &gcc_options::x_riscv_zb_subext, MASK_ZBA},
   {"zbb",    &gcc_options::x_riscv_zb_subext, MASK_ZBB},
