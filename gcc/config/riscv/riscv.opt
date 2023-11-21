@@ -226,6 +226,8 @@ Mask(ZAWRS) Var(riscv_za_subext)
 
 Mask(ZACAS) Var(riscv_za_subext)
 
+Mask(ZABHA) Var(riscv_za_subext)
+
 TargetVariable
 int riscv_zb_subext
 
