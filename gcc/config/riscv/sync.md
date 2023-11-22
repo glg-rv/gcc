@@ -453,9 +453,14 @@
    (match_operand:SI 7 "const_int_operand")]  ;; mod_f
   "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC"
 {
-  emit_insn (gen_atomic_cas_value_strong<mode> (operands[1], operands[2],
-						operands[3], operands[4],
-						operands[6], operands[7]));
+   if (TARGET_ZACAS && TARGET_ZABHA)
+     emit_insn (gen_atomic_cas_value_zabha<mode> (operands[1], operands[2],
+						   operands[3], operands[4],
+						   operands[6], operands[7]));
+   else
+     emit_insn (gen_atomic_cas_value_strong<mode> (operands[1], operands[2],
+						   operands[3], operands[4],
+						   operands[6], operands[7]));
 
   rtx val = gen_reg_rtx (SImode);
   if (operands[1] != const0_rtx)
@@ -487,6 +492,27 @@
   emit_move_insn (operands[0], gen_rtx_EQ (SImode, compare, const0_rtx));
   DONE;
 })
+
+(define_insn "atomic_cas_value_zabha<mode>"
+  [(set (match_operand:SHORT 0 "register_operand" "=&r")
+	(match_operand:SHORT 1 "memory_operand" "+A"))
+   (set (match_dup 1)
+	(unspec_volatile:SHORT [(match_operand:SHORT 2 "register_operand" "0")
+			      (match_operand:SHORT 3 "reg_or_0_operand" "rJ")
+			      (match_operand:SI 4 "const_int_operand")  ;; mod_s
+			      (match_operand:SI 5 "const_int_operand")] ;; mod_f
+	 UNSPEC_AMOCAS))]
+  "TARGET_ZACAS && TARGET_ZABHA"
+{
+  enum memmodel model_success = (enum memmodel) INTVAL (operands[4]);
+  enum memmodel model_failure = (enum memmodel) INTVAL (operands[5]);
+  /* Find the union of the two memory models so we can satisfy both success
+     and failure memory models.  */
+  operands[5] = GEN_INT (riscv_union_memmodels (model_success, model_failure));
+  return "amocas.<amobh>%A5\t%0,%z3,%1\;";
+ }
+ [(set_attr "type" "atomic")
+  (set (attr "length") (const_int 4))])
 
 (define_expand "atomic_cas_value_strong<mode>"
   [(match_operand:SHORT 0 "register_operand") ;; val output
