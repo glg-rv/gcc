@@ -28,6 +28,7 @@
   UNSPEC_SYNC_OLD_OP_ZABHA
   UNSPEC_SYNC_EXCHANGE
   UNSPEC_SYNC_EXCHANGE_SUBWORD
+  UNSPEC_SYNC_EXCHANGE_ZABHA
   UNSPEC_ATOMIC_LOAD
   UNSPEC_ATOMIC_STORE
   UNSPEC_MEMORY_BARRIER
@@ -146,7 +147,7 @@
    (not:SHORT (and:SHORT (match_operand:SHORT 1 "memory_operand")     ;; mem location
 			 (match_operand:SHORT 2 "reg_or_0_operand"))) ;; value for op
    (match_operand:SI 3 "const_int_operand")]			      ;; model
-  "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC && !TARGET_ZABHA"
+  "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC"
 {
   /* We have no QImode/HImode atomics, so form a mask, then use
      subword_atomic_fetch_strong_nand to implement a LR/SC version of the
@@ -194,7 +195,7 @@
     (match_operand:SI 5 "register_operand" "rI")			  ;; not_mask
     (clobber (match_scratch:SI 6 "=&r"))				  ;; tmp_1
     (clobber (match_scratch:SI 7 "=&r"))]				  ;; tmp_2
-  "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC && !TARGET_ZABHA"
+  "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC"
   {
     return "1:\;"
 	   "lr.w%I3\t%0, %1\;"
@@ -282,6 +283,19 @@
   [(set_attr "type" "atomic")
    (set (attr "length") (const_int 4))])
 
+(define_insn "atomic_fetch_zabha_exchange<mode>"
+  [(set (match_operand:SHORT 0 "register_operand" "=&r")
+	(unspec_volatile:SHORT
+	  [(match_operand:SHORT 1 "memory_operand" "+A")
+	   (match_operand:SI 3 "const_int_operand")] ;; model
+	  UNSPEC_SYNC_EXCHANGE_ZABHA))
+   (set (match_dup 1)
+	(match_operand:SHORT 2 "register_operand" "0"))]
+  "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC && TARGET_ZABHA"
+  "amoswap.<amobh>%A3\t%0,%z2,%1"
+  [(set_attr "type" "atomic")
+   (set (attr "length") (const_int 4))])
+
 (define_expand "atomic_exchange<mode>"
   [(match_operand:SHORT 0 "register_operand") ;; old value at mem
    (match_operand:SHORT 1 "memory_operand")   ;; mem location
@@ -289,28 +303,34 @@
    (match_operand:SI 3 "const_int_operand")]  ;; model
   "TARGET_ATOMIC && TARGET_INLINE_SUBWORD_ATOMIC"
 {
-  rtx old = gen_reg_rtx (SImode);
-  rtx mem = operands[1];
-  rtx value = operands[2];
-  rtx model = operands[3];
-  rtx aligned_mem = gen_reg_rtx (SImode);
-  rtx shift = gen_reg_rtx (SImode);
-  rtx mask = gen_reg_rtx (SImode);
-  rtx not_mask = gen_reg_rtx (SImode);
+ if (TARGET_ZABHA)
+    emit_insn(gen_atomic_fetch_zabha_exchange<mode>(operands[0], operands[1],
+						    operands[2], operands[3]));
+ else
+   {
+     rtx old = gen_reg_rtx (SImode);
+     rtx mem = operands[1];
+     rtx value = operands[2];
+     rtx model = operands[3];
+     rtx aligned_mem = gen_reg_rtx (SImode);
+     rtx shift = gen_reg_rtx (SImode);
+     rtx mask = gen_reg_rtx (SImode);
+     rtx not_mask = gen_reg_rtx (SImode);
 
-  riscv_subword_address (mem, &aligned_mem, &shift, &mask, &not_mask);
+     riscv_subword_address (mem, &aligned_mem, &shift, &mask, &not_mask);
 
-  rtx shifted_value = gen_reg_rtx (SImode);
-  riscv_lshift_subword (<MODE>mode, value, shift, &shifted_value);
+     rtx shifted_value = gen_reg_rtx (SImode);
+     riscv_lshift_subword (<MODE>mode, value, shift, &shifted_value);
 
-  emit_insn (gen_subword_atomic_exchange_strong (old, aligned_mem,
-						 shifted_value, model,
-						 not_mask));
+     emit_insn (gen_subword_atomic_exchange_strong (old, aligned_mem,
+						    shifted_value, model,
+						    not_mask));
 
-  emit_move_insn (old, gen_rtx_ASHIFTRT (SImode, old,
-					 gen_lowpart (QImode, shift)));
+     emit_move_insn (old, gen_rtx_ASHIFTRT (SImode, old,
+					    gen_lowpart (QImode, shift)));
 
-  emit_move_insn (operands[0], gen_lowpart (<MODE>mode, old));
+     emit_move_insn (operands[0], gen_lowpart (<MODE>mode, old));
+   }
   DONE;
 })
 
